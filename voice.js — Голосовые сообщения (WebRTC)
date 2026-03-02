@@ -1,0 +1,64 @@
+class VoiceRecorder {
+    constructor() {
+        this.mediaRecorder = null;
+        this.chunks = [];
+        this.stream = null;
+        this.startTime = null;
+    }
+
+    async start() {
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.mediaRecorder = new MediaRecorder(this.stream);
+            this.chunks = [];
+            this.startTime = Date.now();
+
+            this.mediaRecorder.ondataavailable = (e) => {
+                this.chunks.push(e.data);
+            };
+
+            this.mediaRecorder.start();
+            
+            // Визуализация записи
+            document.getElementById('voice-btn').textContent = '⏹️';
+            document.getElementById('voice-btn').style.color = '#ff6b6b';
+            
+        } catch (err) {
+            console.error('Mic access denied:', err);
+            alert('Дай доступ к микрофону, дружище');
+        }
+    }
+
+    stop() {
+        if (!this.mediaRecorder) return;
+
+        return new Promise((resolve) => {
+            this.mediaRecorder.onstop = () => {
+                const blob = new Blob(this.chunks, { type: 'audio/ogg; codecs=opus' });
+                const duration = Math.floor((Date.now() - this.startTime) / 1000);
+                
+                // Останавливаем стрим
+                this.stream.getTracks().forEach(track => track.stop());
+                
+                // Сброс UI
+                document.getElementById('voice-btn').textContent = '🎤';
+                document.getElementById('voice-btn').style.color = '';
+                
+                resolve({ blob, duration });
+            };
+
+            this.mediaRecorder.stop();
+        });
+    }
+
+    generateWaveform() {
+        // Генерируем случайные бары для визуализации
+        const bars = [];
+        for (let i = 0; i < 20; i++) {
+            bars.push(Math.floor(Math.random() * 20) + 5);
+        }
+        return bars;
+    }
+}
+
+const voiceRecorder = new VoiceRecorder();
