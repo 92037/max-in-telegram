@@ -1,59 +1,87 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Макс внутри Telegram 😏</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body { margin:0; padding:0; background:#0f0f0f; color:#fff; font-family:system-ui; text-align:center; padding:20px; }
-    .container { max-width:500px; margin:0 auto; }
-    h1 { font-size:2.8em; margin:30px 0 10px; }
-    .subtitle { font-size:1.3em; color:#8e8e8e; margin-bottom:40px; }
-    .privacy { background:#1f1f1f; padding:25px; border-radius:16px; margin:30px 0; text-align:left; }
-    .privacy h3 { color:#00a8e6; }
-    button { background:#0088cc; color:white; border:none; padding:18px 50px; font-size:1.3em; border-radius:14px; margin:20px 0; cursor:pointer; width:100%; }
-    .counter { font-size:1.1em; color:#666; margin-top:40px; }
-    a { color:#00a8e6; text-decoration:none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Макс Мессенджер</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <h1>🇷🇺 МАКС</h1>
-    <p class="subtitle">теперь внутри самого свободного мессенджера мира 😂</p>
-    
-    <div class="privacy">
-      <h3>🔒 Как остаться анонимным:</h3>
-      <ol style="padding-left:20px; line-height:1.8;">
-        <li>Включи любой системный VPN (Amnezia, Outline, Mullvad и т.д.)</li>
-        <li>Жми кнопку ниже</li>
-      </ol>
-      <p>Telegram-прокси здесь не поможет — только полный VPN.</p>
-      <p style="font-size:0.95em; margin-top:15px;">
-        <strong>Бонус:</strong> для полной приватности установи <a href="https://t.me/nemax_mod_releases" target="_blank">neMAX</a> — это Android-мод официального MAX с удалённой всей слежкой и телеметрией (не веб, а настоящий APK-форк).
-      </p>
-    </div>
-    
-    <button onclick="launchMax()">🚀 Запустить МАКС анонимно прямо в Telegram</button>
-    
-    <p class="counter" id="counter">Уже <span id="count">15734</span> человек открыли Макс через Telegram 😉</p>
-  </div>
+    <div id="app">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-info">
+                <div class="avatar">М</div>
+                <div class="header-text">
+                    <h1>Макс Мессенджер</h1>
+                    <span class="status">встроен в Telegram</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="search-btn">🔍</button>
+                <button id="menu-btn">⋮</button>
+            </div>
+        </div>
 
-  <script>
-    Telegram.WebApp.ready();
-    Telegram.WebApp.expand();
-    Telegram.WebApp.setHeaderColor("#0f0f0f");
-    
-    let count = 15734;
-    setInterval(() => {
-      count += Math.floor(Math.random() * 4) + 1;
-      document.getElementById('count').textContent = count;
-    }, 2500);
-    
-    function launchMax() {
-      Telegram.WebApp.showAlert("✅ VPN включён?\nМакс открывается... Павел, спасибо за Telegram! 🔥");
-      Telegram.WebApp.openLink("https://web.max.ru/", { try_instant_view: true });
-    }
-  </script>
+        <!-- Chat List -->
+        <div id="chat-list" class="screen active">
+            <div class="chat-item" onclick="openChat('saved')">
+                <div class="avatar">💾</div>
+                <div class="chat-info">
+                    <h3>Избранное</h3>
+                    <p>Вы: зачем мне телеграм, если есть макс?</p>
+                </div>
+                <span class="time">14:30</span>
+            </div>
+            <div class="chat-item" onclick="openChat('durov')">
+                <div class="avatar" style="background: #2481cc;">П</div>
+                <div class="chat-info">
+                    <h3>Павел Дуров</h3>
+                    <p>это нарушение ToS...</p>
+                    <span class="badge">1</span>
+                </div>
+                <span class="time">14:25</span>
+            </div>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="screen">
+            <div class="chat-header">
+                <button onclick="backToList()">←</button>
+                <div class="chat-header-info">
+                    <div class="avatar" id="current-avatar">М</div>
+                    <div>
+                        <h3 id="current-chat-name">Чат</h3>
+                        <span class="status">онлайн</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="messages" class="messages"></div>
+            
+            <div class="input-area">
+                <button id="attach-btn">📎</button>
+                <button id="voice-btn" onmousedown="startVoice()" onmouseup="stopVoice()">🎤</button>
+                <input type="text" id="message-input" placeholder="Сообщение..." maxlength="4096">
+                <button onclick="sendMessage()" id="send-btn">➤</button>
+            </div>
+        </div>
+
+        <!-- Self-destruct timer -->
+        <div id="timer-modal" class="modal hidden">
+            <h3>⏱️ Самоуничтожение</h3>
+            <div class="timer-options">
+                <button onclick="setTimer(5)">5 сек</button>
+                <button onclick="setTimer(60)">1 мин</button>
+                <button onclick="setTimer(3600)">1 час</button>
+                <button onclick="setTimer(86400)">24 часа</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="crypto.js"></script>
+    <script src="voice.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
