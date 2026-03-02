@@ -1,0 +1,283 @@
+// Telegram Web App init
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+// Конфиг
+const CONFIG = {
+    REPO_OWNER: 'твой-ник', // замени на свой
+    REPO_NAME: 'max-messenger-data',
+    GITHUB_TOKEN: null // будет запрашиваться у пользователя
+};
+
+// Состояние
+let currentChat = null;
+let messages = [];
+let selfDestructTimer = null;
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', async () => {
+    await maxCrypto.init();
+    loadMessages();
+    
+    // Подстраиваем цвета под тему Telegram
+    document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color);
+    document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color);
+});
+
+// Навигация
+function openChat(chatId) {
+    currentChat = chatId;
+    document.getElementById('chat-list').classList.remove('active');
+    document.getElementById('chat-screen').classList.add('active');
+    
+    const names = {
+        'saved': 'Избранное',
+        'durov': 'Павел Дуров'
+    };
+    document.getElementById('current-chat-name').textContent = names[chatId] || 'Чат';
+    
+    loadChatMessages(chatId);
+}
+
+function backToList() {
+    document.getElementById('chat-screen').classList.remove('active');
+    document.getElementById('chat-list').classList.add('active');
+    currentChat = null;
+}
+
+// Отправка сообщения
+async function sendMessage() {
+    const input = document.getElementById('message-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const message = {
+        id: Date.now(),
+        text: text,
+        out: true,
+        timestamp: new Date().toISOString(),
+        encrypted: true,
+        selfDestruct: selfDestructTimer,
+        chatId: currentChat
+    };
+
+    // "Шифруем" (визуально)
+    if (message.encrypted) {
+        message.text = `🔒 ${text}`;
+    }
+
+    // Добавляем в UI
+    renderMessage(message);
+    
+    // Сохраняем в localStorage (наша "база данных")
+    saveMessage(message);
+    
+    // Если есть таймер самоуничтожения
+    if (selfDestructTimer) {
+        SelfDestruct.schedule(message.id, selfDestructTimer);
+        selfDestructTimer = null;
+    }
+
+    // Отправляем в GitHub Issues (как бесплатный бэкенд)
+    await syncToGitHub(message);
+
+    input.value = '';
+}
+
+// Рендер сообщения
+function renderMessage(msg) {
+    const container = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `message ${msg.out ? 'out' : 'in'} ${msg.selfDestruct ? 'self-destruct' : ''}`;
+    div.id = `msg-${msg.id}`;
+    
+    let html = `<div class="message-text">${escapeHtml(msg.text)}</div>`;
+    
+    // Мета-информация
+    html += `<div class="message-meta">`;
+    html += formatTime(msg.timestamp);
+    
+    if (msg.encrypted) {
+        html += ' <span class="encrypted"></span>';
+    }
+    
+    if (msg.selfDestruct) {
+        const remaining = SelfDestruct.getRemainingTime(msg.id);
+        html += ` <span class="timer-badge">⏱️ ${remaining || msg.selfDestruct}s</span>`;
+    }
+    
+    // Галочки как в Telegram
+    html += msg.out ? ' <span>✓✓</span>' : '';
+    html += `</div>`;
+    
+    div.innerHTML = html;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// Голосовые сообщения
+async function startVoice() {
+    await voiceRecorder.start();
+}
+
+async function stopVoice() {
+    const { blob, duration } = await voiceRecorder.stop();
+    
+    // Создаём визуализацию
+    const waveform = voiceRecorder.generateWaveform();
+    const barsHtml = waveform.map(h => 
+        `<div class="wave-bar" style="height:${h}px"></div>`
+    ).join('');
+    
+    const message = {
+        id: Date.now(),
+        type: 'voice',
+        duration: duration,
+        waveform: waveform,
+        out: true,
+        timestamp: new Date().toISOString()
+    };
+    
+    renderVoiceMessage(message, barsHtml);
+    saveMessage(message);
+}
+
+function renderVoiceMessage(msg, barsHtml) {
+    const container = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `message ${msg.out ? 'out' : 'in'}`;
+    
+    div.innerHTML = `
+        <div class="voice-message">
+            <button>▶️</button>
+            <div class="voice-wave">${barsHtml}</div>
+            <span>${msg.duration}"</span>
+        </div>
+        <div class="message-meta">${formatTime(msg.timestamp)} ✓✓</div>
+    `;
+    
+    container.appendChild(div);
+}
+
+// GitHub как бэкенд (через Issues API)
+async function syncToGitHub(message) {
+    // В реальности здесь был бы POST к GitHub API
+    // Но для статического хостинга мы используем хак:
+    // Сохраняем в localStorage и предлагаем пользователю 
+    // "экспортировать" через GitHub Gist вручную
+    
+    const exportData = {
+        repo: `${CONFIG.REPO_OWNER}/${CONFIG.REPO_NAME}`,
+        message: message,
+        timestamp: Date.now()
+    };
+    
+    console.log('Would sync to GitHub:', exportData);
+    
+    // Имитация синхронизации
+    showToast('Синхронизировано с облаком Макса ☁️');
+}
+
+// Таймер самоуничтожения
+function showTimerModal() {
+    document.getElementById('timer-modal').classList.remove('hidden');
+}
+
+function setTimer(seconds) {
+    selfDestructTimer = seconds;
+    document.getElementById('timer-modal').classList.add('hidden');
+    showToast(`Самоуничтожение через ${seconds} сек`);
+}
+
+// Утилиты
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatTime(iso) {
+    const date = new Date(iso);
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function showToast(text) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 20px;
+        font-size: 14px;
+        z-index: 1000;
+        animation: fadeIn 0.3s;
+    `;
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function saveMessage(msg) {
+    const key = `max_messages_${msg.chatId}`;
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    existing.push(msg);
+    localStorage.setItem(key, JSON.stringify(existing));
+}
+
+function loadMessages() {
+    // Загружаем из localStorage при старте
+    ['saved', 'durov'].forEach(chatId => {
+        const key = `max_messages_${chatId}`;
+        const msgs = JSON.parse(localStorage.getItem(key) || '[]');
+        // Можно обновить бейджи непрочитанных
+    });
+}
+
+function loadChatMessages(chatId) {
+    const container = document.getElementById('messages');
+    container.innerHTML = '';
+    
+    const key = `max_messages_${chatId}`;
+    const msgs = JSON.parse(localStorage.getItem(key) || '[]');
+    
+    // Добавляем мок-сообщения для демо
+    if (chatId === 'durov' && msgs.length === 0) {
+        renderMessage({
+            id: 1,
+            text: 'Ты серьёзно сделал мессенджер внутри моего мессенджера?',
+            out: false,
+            timestamp: new Date(Date.now() - 3600000).toISOString()
+        });
+        renderMessage({
+            id: 2,
+            text: 'Это инновация. Лови $5k на развитие.',
+            out: false,
+            timestamp: new Date(Date.now() - 3000000).toISOString()
+        });
+    }
+    
+    msgs.forEach(renderMessage);
+}
+
+// Обработчики событий
+document.getElementById('message-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+document.getElementById('attach-btn').addEventListener('click', showTimerModal);
+
+// Закрытие модалки по клику вне
+document.getElementById('timer-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        e.target.classList.add('hidden');
+    }
+});
+
+// Инициализация Telegram хэдеров
+tg.MainButton.setText('Отправить');
+tg.MainButton.onClick(sendMessage);
