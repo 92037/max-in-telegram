@@ -1,0 +1,100 @@
+// E2E Encryption using Web Crypto API (аналог Signal Protocol из nemax)
+class MaxCrypto {
+    constructor() {
+        this.keyPair = null;
+        this.sessionKeys = new Map();
+    }
+
+    async init() {
+        // Генерируем ключи при первом запуске
+        const stored = localStorage.getItem('max_keys');
+        if (stored) {
+            this.keyPair = JSON.parse(stored);
+        } else {
+            this.keyPair = await this.generateKeys();
+            localStorage.setItem('max_keys', JSON.stringify(this.keyPair));
+        }
+    }
+
+    async generateKeys() {
+        const keyPair = await window.crypto.subtle.generateKey(
+            {
+                name: "ECDH",
+                namedCurve: "P-256"
+            },
+            true,
+            ["deriveKey"]
+        );
+        
+        const publicKey = await window.crypto.subtle.exportKey("raw", keyPair.publicKey);
+        return {
+            publicKey: Array.from(new Uint8Array(publicKey)),
+            privateKey: keyPair.privateKey // остаётся в памяти
+        };
+    }
+
+    async encryptMessage(message, recipientPublicKey) {
+        // Симулируем шифрование (в реальности нужен полный Signal Protocol)
+        const encoder = new TextEncoder();
+        const data = encoder.encode(message);
+        
+        // Генерируем AES ключ для этого сообщения
+        const aesKey = await window.crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt"]
+        );
+        
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const encrypted = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv },
+            aesKey,
+            data
+        );
+
+        return {
+            ciphertext: Array.from(new Uint8Array(encrypted)),
+            iv: Array.from(iv),
+            key: await this.wrapKey(aesKey, recipientPublicKey)
+        };
+    }
+
+    async wrapKey(key, recipientPublicKey) {
+        // Упрощённая версия - в nemax используется полный X3DH
+        return "encrypted_key_placeholder";
+    }
+
+    getPublicKey() {
+        return this.keyPair.publicKey;
+    }
+}
+
+// Self-destruct timer
+class SelfDestruct {
+    static schedule(messageId, seconds) {
+        const deleteAt = Date.now() + seconds * 1000;
+        localStorage.setItem(`destruct_${messageId}`, deleteAt);
+        
+        setTimeout(() => {
+            this.destroy(messageId);
+        }, seconds * 1000);
+    }
+
+    static destroy(messageId) {
+        const el = document.getElementById(`msg-${messageId}`);
+        if (el) {
+            el.style.transform = 'scale(0)';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 300);
+        }
+        localStorage.removeItem(`destruct_${messageId}`);
+    }
+
+    static getRemainingTime(messageId) {
+        const deleteAt = localStorage.getItem(`destruct_${messageId}`);
+        if (!deleteAt) return null;
+        return Math.max(0, Math.floor((deleteAt - Date.now()) / 1000));
+    }
+}
+
+const maxCrypto = new MaxCrypto();
